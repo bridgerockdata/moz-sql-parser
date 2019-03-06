@@ -51,6 +51,8 @@ join_keywords = {
     "full outer join",
     "right outer join",
     "left outer join",
+    "cross lateral join",
+    "lateral join",
 }
 keywords = {
     "and",
@@ -58,16 +60,20 @@ keywords = {
     "asc",
     "between",
     "case",
+    "coalesce",
     "collate nocase",
+    "concat",
     "desc",
     "else",
     "end",
     "from",
+    "greatest",
     "group by",
     "having",
     "in",
     "not in",
     "is",
+    "least",
     "limit",
     "offset",
     "like",
@@ -76,6 +82,7 @@ keywords = {
     "on",
     "or",
     "order by",
+    "over",
     "select",
     "then",
     "union",
@@ -83,6 +90,7 @@ keywords = {
     "using",
     "when",
     "where",
+    "window",
     "with"
 } | join_keywords
 locs = locals()
@@ -115,7 +123,8 @@ KNOWN_OPS = [
     LIKE.setName("like").setDebugActions(*debug),
     NOTLIKE.setName("nlike").setDebugActions(*debug),
     OR.setName("or").setDebugActions(*debug),
-    AND.setName("and").setDebugActions(*debug)
+    AND.setName("and").setDebugActions(*debug),
+    OVER.setName("over").setDebugActions(*debug)
 ]
 
 
@@ -185,6 +194,14 @@ def to_when_call(instring, tokensStart, retTokens):
     tok = retTokens
     return {"when": tok.when, "then":tok.then}
 
+def to_table_alias_call(instring, tokensStart, retTokens):
+    tok = retTokens
+    return {"alias": tok.alias, "value":tok.value}
+
+def to_with_call(instring, tokensStart, retTokens):
+    tok = retTokens
+    tables = list(tok.tables)
+    return {"with": tables}
 
 def to_join_call(instring, tokensStart, retTokens):
     tok = retTokens
@@ -371,7 +388,21 @@ selectStmt << Group(
 ).addParseAction(to_union_call)
 
 
-SQLParser = selectStmt
+withStmt = Optional(
+    WITH +
+    Group(
+        delimitedList(
+            (
+                # Group(
+                      ident("alias").setName("table alias") + Optional(AS).suppress() +
+                # ).addParseAction(to_table_alias_call) +
+                table_source("value")
+            ).addParseAction(to_table_alias_call)
+        )
+    )("tables")
+).addParseAction(to_with_call)
+
+SQLParser = withStmt + selectStmt
 
 # IGNORE SOME COMMENTS
 oracleSqlComment = Literal("--") + restOfLine
